@@ -11,6 +11,7 @@ const mongoose = require("mongoose");
         humValues :[Number],
         ligValues :[Number],
         otherVal :[Number] ,
+        data : [] ,
         type : String ,
         isAffected : Boolean ,
         factoryId : mongoose.Schema.Types.ObjectId ,
@@ -18,6 +19,7 @@ const mongoose = require("mongoose");
         factoryName :String ,
         state : Boolean ,
         batteryLevel : String ,
+        area : String ,
     })
 );
 

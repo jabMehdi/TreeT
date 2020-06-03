@@ -17,6 +17,7 @@ var Factory = mongoose.model(
             required: true},
         description :{type : String,
             required: true},
+        place : [String] ,
     })
 );
 

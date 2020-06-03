@@ -8,7 +8,6 @@ var nodemailer = require('nodemailer');
 
 function verifyToken(req, res, next) {
     let payload;
-    console.log(req.query.token);
     if(req.query.token === 'null') {
         return res.status(401).send('Unauthorized request')
     }
@@ -27,7 +26,6 @@ function verifyToken(req, res, next) {
 
 router.post('/Reclamation/add', verifyToken, async (req, res) => {
     console.log(req.body);
-
     let reclamation = new Reclamation({
         userId: req.id,
         message: req.body.message,
@@ -46,9 +44,9 @@ router.post('/Reclamation/add', verifyToken, async (req, res) => {
 
         var mailOptions = {
             from: 'iottreetronixt@gmail.com',
-            to: User.email ,
-            subject: req.body.subject,
-            text: req.body.message ,
+            to: 'tawfikmili3@gmail.com' ,
+            subject: 'treetronix platform : ' + req.body.subject,
+            text: 'user is ' + User.name     + req.body.message ,
         };
 
         transporter.sendMail(mailOptions, function(error, info){

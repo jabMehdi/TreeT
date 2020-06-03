@@ -129,7 +129,7 @@ router.post('/login',async (req, res) =>
       id: NewUser[0]._id,
     }
     let token = jwt.sign(payload,'tawfik');
-    res.json({status:"ok" , message: 'Welcome Back', UserData : NewUser , token});
+      res.json({status:"ok" , message: 'Welcome Back', UserData : NewUser , token});
   }catch (err) {
     res.header("Access-Control-Allow-Headers", "*");
     res.json({ message:err.message });
@@ -181,6 +181,7 @@ router.get('/users/:email',async (req,res) => {
 router.post('/request',async (req,res) => {
   try {
     const NewUser = await User.find({ email : req.body.email  });
+
     console.log(NewUser);
     if (NewUser.length < 1)
     {
@@ -188,6 +189,12 @@ router.post('/request',async (req,res) => {
     }
     else {
       code = makecode(6);
+      console.log('hedha el code' ,code) ;
+
+      NewUser.code = code ;
+      console.log('w hedha user.code',NewUser.code) ;
+      NewUser.save() ;
+      console.log('hedha new user bel code' , NewUser) ;
       var transporter = nodemailer.createTransport({
         service: 'Gmail',
         auth: {
@@ -226,18 +233,21 @@ function makecode(length) {
   }
   return result;
 }
-
 router.post('/code',async (req,res) => {
   console.log("d5al lel code") ;
   try {
-    if (req.body.code){}
+    NewUser = await User.find({ email : req.body.email  });
+    if (req.body.code === NewUser.code) {
+      res.json({status:"ok" , message: 'you can reset'});
+    }
+    res.json({status:"err" , message: 'wrong code'});
+
 
   } catch (err) {
     res.json({message: err})
 
   }
 });
-
 
 
   module.exports=router;

@@ -7,7 +7,6 @@ const Sensor = require('../models/Sensor');
 
 function verifyToken(req, res, next) {
     let payload;
-    console.log(req.query.token);
     if (req.query.token === 'null') {
         return res.status(401).send('Unauthorized request')
     }
@@ -27,9 +26,6 @@ function verifyToken(req, res, next) {
 }
 
 router.put('/factory/add', verifyToken, async (req, res) => {
-    console.log(req.body);
-
-
     let factory = new Factory({
 
         userId: req.id,
@@ -43,10 +39,7 @@ router.put('/factory/add', verifyToken, async (req, res) => {
         const NewFactory = await Factory.find({_id: req.body.id, name: req.body.name});
         if (NewFactory == undefined || NewFactory.length == 0) {
             factory = await factory.save();
-            console.log('5ach hné');
-            console.log(factory);
         } else {
-            console.log('update')
             factory = await Factory.findOneAndUpdate({
                 userId: req.id,
                 name: req.body.name,
@@ -60,7 +53,6 @@ router.put('/factory/add', verifyToken, async (req, res) => {
                 }],
             });
         }
-        console.log(factory);
         res.json(factory);
         return;
 
@@ -70,8 +62,7 @@ router.put('/factory/add', verifyToken, async (req, res) => {
         res.json({status: 'err', message: err.message});
     }
 
-})
-
+});
 
 router.post('/factory/all', verifyToken, async (req, res) => {
 
@@ -80,23 +71,20 @@ router.post('/factory/all', verifyToken, async (req, res) => {
 
         const s = await Factory.find({userId: req.id});
         res.json(s);
-        console.log(s);
 
     } catch (err) {
         res.json({message: err.message});
 
     }
 
-})
+});
 
 router.post('/factory/ByUser', verifyToken, async (req, res) => {
-    console.log(req.body);  
 
     try {
 
         const s = await Factory.find({userId: req.id}
         );
-        console.log(s);
 
         res.json(s);
 
@@ -127,5 +115,71 @@ router.delete('/factory/delete/:id', async (req, res) => {
     });
 });
 
+router.post('/factory/update/', verifyToken, async (req, res) => {
+    console.log('d5al');
+    const fac = await Factory.findById({_id: req.body.id});
+
+    if (req.body.name != null) {
+        fac.name = req.body.name;
+    }
+    if (req.body.description != null) {
+        fac.description = req.body.description;
+
+    }
+    fac.save();
+    await res.json(fac);
+
+});
+
+router.post('/factory/addPlace', verifyToken, async (req, res) => {
+    console.log(req.body);
+    try {
+
+        const updateTemp = await Factory.findOneAndUpdate({_id: req.body.id},
+            {
+                $addToSet: {
+                    place: {$each: [req.body.place],},
+
+                }
+            }, {new: true});
+
+
+        res.json({status: "ok", message: 'saved'});
+    } catch (err) {
+        res.json({status: 'err', message: err.message});
+    }
+
+});
+router.post('/factory/placeByFactory', verifyToken, async (req, res) => {
+
+    try {
+        console.log(req.body);
+        const s = await Factory.find({userId: req.id, _id: req.body.id}
+        );
+
+        res.json(s);
+
+    } catch (err) {
+        res.json({message: err.message});
+
+    }
+
+});
+router.post('/factory/updateZone/', verifyToken, async (req, res) => {
+    console.log('d5al', req.body);
+
+    const fac = await Factory.findById({_id: req.body.id});
+
+    if (req.body.name != null) {
+        fac.name = req.body.name;
+    }
+    if (req.body.place != null) {
+        fac.place = req.body.place;
+
+    }
+    fac.save();
+    await res.json(fac);
+
+});
 
 module.exports = router;

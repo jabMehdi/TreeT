@@ -28,7 +28,7 @@ function verifyToken(req, res, next) {
     next()
 }
 
-function sendEmail(receiver, minmax, status) {
+function sendEmail(receiver, value, status, data) {
     var result = '';
     var transporter = nodemailer.createTransport({
         service: 'Gmail',
@@ -41,8 +41,8 @@ function sendEmail(receiver, minmax, status) {
     var mailOptions = {
         from: 'iottreetronixt@gmail.com',
         to: receiver,
-        subject: status + 'Notification from IOt-Factory',
-        text: 'the fact of sending this notification is to test my ability to doing that skill :D,' + minmax,
+        subject: status + ' Notification from IOt-Factory',
+        text: 'the ' + data + ' is = ' + value + '',
     };
 
     transporter.sendMail(mailOptions, function (error, info) {
@@ -85,47 +85,8 @@ router.post('/alert/add', verifyToken, async (req, res) => {
 router.get('/alert/getByUser', verifyToken, async (req, res) => {
     try {
         const a = await Alert.find({userId: req.id});
-// hedha kol el aleret
-        sensor = await Sensor.find({userId: req.id});
-        user = await User.findById(req.id);
 
-        a.forEach(item => {
-            sensor.forEach(s => {
-                console.log(item.deviceId)
-                if (s.id == item.deviceId) {
-
-                    if (item.data == 'Humidity') {
-                        console.log('data si ' + item.data + 'Humidity' + item.deviceId);
-                        console.log('hani d5aly ntasti fi humidité ');
-                        if ((s.humValues[s.humValues.length - 1] < item.min) || (s.humValues[s.humValues.length - 1] > item.max)) {
-                            if (item.Nemail == true) {
-
-                                console.log(+s.humValues[s.humValues.length - 1] + '>' + item.min);
-                                console.log(+s.humValues[s.humValues.length - 1] + '<' + item.max);
-                                console.log('notif with email avec les coordoné sont  stauts =' + item.status + 'device name = ' + item.deviceName + 'user is is ' + item.userId);
-                                console.log('hedha el user mte3na ' + user.email);
-                              //  sendEmail(user.email, 25, "danger") ;
-
-                            }
-                            if (item.Nsms == true) {
-                                console.log('notif with Sms ');
-                            }
-                            if (item.Ntoast == true) {
-                                console.log('notif with toast ');
-                            }
-                            console.log('el valeur' + s.tempValues[s.tempValues.length - 1]);
-                            console.log('max ' + item.max);
-                            console.log('jawna behi 3ale5er');
-                        }
-                    }
-
-
-                }
-
-            });
-        });
         res.json(a);
-        console.log(a);
 
     } catch (err) {
         res.json({message: err.message});
@@ -135,16 +96,71 @@ router.get('/alert/getByUser', verifyToken, async (req, res) => {
 });
 
 router.delete('/alert/delete/:id', (req, res) => {
-    console.log('ana houné');
-    Alert.findByIdAndRemove(req.params.id)
-        .then(alert => {
-            if (!alert) {
-                return res.status(404).send({
-                    message: "alert not found with code " + req.params.id
-                });
-            }
-        })
+    try {
+        Alert.findByIdAndRemove(req.params.id)
+            .then(alert => {
+                if (!alert) {
+                    return res.status(404).send({
+                        message: "alert not found with code " + req.params.id
+                    });
+                }
+            });
+    } catch (e) {
+    }
 });
 
+router.post('/alert/ToastNotification', verifyToken, async (req, res) => {
+    try {
+        const a = await Alert.find({userId: req.id, Ntoast: true, deviceId: req.body.code});
+        res.json(a);
+    } catch (err) {
+        res.json({message: err.message});
+    }
+});
+// email notification
+router.post('/alert/email', verifyToken, async (req, res) => {
+    try {
+        const b = await Alert.find({userId: req.id, Nemail: true, deviceId: req.body.code});
+        res.json(b);
+        console.log('hedhi heya data mta3 email', b);
+    } catch (err) {
+        res.json({message: err.message});
+    }
+});
 
+router.post('/alert/SendEmail', verifyToken, async (req, res) => {
+    try {
+        const user = await User.findOne({_id: req.id});
+        console.log(user.email);
+
+        // sendEmail(user.email, req.body.value, req.body.status, req.body.data);
+        console.log('Emmail teb3ath zaghrou ya nsewin ');
+        console.log(user.email ) ;
+        console.log(req.body.value) ;
+        console.log(req.body.status ) ;
+        console.log(req.body.data ) ;
+        res.json({status: "ok", message: 'email sended'});
+
+    } catch (err) {
+        res.json({message: err.message});
+    }
+});
+
+router.post('/alert/update/', verifyToken, async (req, res) => {
+
+    const alert = await Alert.findById({_id: req.body.id});
+    var min = parseInt(req.body.min);
+    var max = parseInt(req.body.max);
+
+    if (min != null) {
+        alert.min = req.body.min ;
+    }
+    if (max!= null) {
+        alert.max = req.body.max;
+    }
+
+    alert.save() ;
+
+    await res.json(alert);
+});
 module.exports = router;

@@ -23,6 +23,7 @@ var UserSchema = new mongoose.Schema({
     type: Number,
     required: true,
   },
+  code : String ,
 
 });
 

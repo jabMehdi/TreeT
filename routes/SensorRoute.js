@@ -1,6 +1,5 @@
 const express = require('express');
 const router = express.Router();
-
 const Sensor = require('../models/Sensor');
 var jwt = require('jsonwebtoken');
 
@@ -9,7 +8,6 @@ const F = require('../models/Factory');
 
 function verifyToken(req, res, next) {
     let payload;
-    console.log(req.query.token);
     if (req.query.token === 'null') {
         return res.status(401).send('Unauthorized request')
     }
@@ -30,7 +28,6 @@ function verifyToken(req, res, next) {
 }
 
 router.post('/sensor', verifyToken, async (req, res) => {
-    console.log(req.body);
     let sensor = new Sensor({
         userId: null,
         code: req.body.code,
@@ -43,12 +40,12 @@ router.post('/sensor', verifyToken, async (req, res) => {
         createdAt: [],
         factoryName: req.body.factoryName,
         state: req.body.state,
-        batteryLevel : req.body.batteryLevel ,
+        batteryLevel: req.body.batteryLevel,
+        area: req.body.area,
     });
     try {
-        console.log('hedha actioneur ' + sensor) ;
+
         sensor = await sensor.save();
-        console.log(sensor);
         res.json({status: "ok", message: 'sensor add to data base'});
         return;
         res.json({status: "err", message: 'sensor already existe'});
@@ -70,9 +67,6 @@ router.post('/sensor/findByCode', verifyToken, async (req, res) => {
             return;
         }
         res.json(s);
-        console.log(s);
-
-
     } catch (err) {
         res.json({message: err.message});
 
@@ -84,10 +78,16 @@ router.post('/sensor/findByCode', verifyToken, async (req, res) => {
 router.post('/sensor/findByType', verifyToken, async (req, res) => {
 
     try {
-        console.log("d5al hné");
-        const s = await Sensor.find({type: req.body.type, userId: req.id});
-        res.json(s);
-        console.log(s)
+        const s = await Sensor.find({type: req.body.type, userId: req.id, factoryId: req.body.factoryId});
+        const s1 = await Sensor.find({type: req.body.type, userId: req.id});
+        if (s.length > 0) {
+            await res.json(s);
+            return;
+        }
+        if (s.length < 1) {
+            await res.json(s1);
+            return;
+        }
 
 
     } catch (err) {
@@ -103,7 +103,6 @@ router.post('/sensor/findByUser', verifyToken, async (req, res) => {
     try {
         s = await Sensor.find({userId: req.id});
         res.json(s);
-        console.log(s);
 
     } catch (err) {
         res.json({message: err.message});
@@ -117,7 +116,6 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
     Sensor.findOne({code: req.body.code}, async function (err, foundObject) {
 
         if (err) {
-            console.log(err);
             res.json({status: "err", message: 'not found'});
         } else {
             if (!foundObject) {
@@ -131,7 +129,6 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
                 }
 
                 if (foundObject.factoryId != null) {
-                    console.log('d5al houni');
                     const deleteIdSensor = await F.findOneAndUpdate(
                         {_id: foundObject.factoryId},
                         {$pull: {sensorsId: {$in: [foundObject.id]}}}, false
@@ -139,12 +136,13 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
 
 
                 }
+                foundObject.area = req.body.area;
                 foundObject.name = req.body.name;
                 foundObject.userId = req.id;
                 foundObject.factoryId = req.body.factoryId._id;
                 foundObject.isAffected = req.body.isAffected;
                 foundObject.factoryName = req.body.factoryId.name;
-                console.log('look at me know' + req.body.factoryId.name);
+
 
                 const update = await F.findByIdAndUpdate(
                     req.body.factoryId._id,
@@ -157,8 +155,6 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
                     },
                     {new: true}
                 );
-
-                console.log('factory updated ' + update);
                 foundObject.save();
                 res.json(foundObject);
             }
@@ -171,10 +167,9 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
 });
 
 router.post('/sensor/updateValues', verifyToken, async (req, res) => {
-    console.log(req.body.code);
     date = new Date;
+    updateClient();
     now = date.getDate() + '-' + date.getMonth() + '-' + date.getFullYear() + ',' + date.getHours() + ':' + date.getMinutes();
-    console.log(now);
     if (req.body.tempValues != null) {
         const updateTemp = await Sensor.findOneAndUpdate({code: req.body.code},
             {
@@ -211,9 +206,46 @@ router.post('/sensor/updateValues', verifyToken, async (req, res) => {
 
 });
 
+// new update
+router.post('/sensor/updateData', async (req, res) => {
+    try {
+        /*
+        * send data like this
+        *              {
+     "code" : "93" ,
+     "state": "" ,
+     "batteryLevel" : " 33" ,
+     "time"  : "" ,
+     "humValues" : "33" ,
+     "tempValues" : "33" ,
+     "lightValues" : "33" ,
+     "energy" : ""  ,
+     "type" : "Sensor"
+
+     }
+        * */
+        Sens = await Sensor.findOne({code: req.body.code});
+        delete req.body.code;
+        req.body.time =  Date.now() ;
+        Sens.data.push(req.body);
+        await Sens.save();
+       // AlertClients(req.body, Sens);
+        return res.status(200).json({status: "ok", message: Sens});
+    } catch (e) {
+    }
+});
+
+
+
+
+
+
+
+
+
+
 router.delete('/sensor/delete/:id', (req, res) => {
-    console.log('ana houné');
-    console.log(req.body);
+
     Sensor.findByIdAndRemove(req.params.id)
         .then(sensor => {
             if (!sensor) {
@@ -227,10 +259,9 @@ router.delete('/sensor/delete/:id', (req, res) => {
 router.post('/sensor/all', verifyToken, async (req, res) => {
 
     try {
-        console.log('this is value all' + req.body.value);
+
         const s = await Sensor.find({type: req.body.type, userId: req.id});
         res.json(s);
-        console.log(s);
 
     } catch (err) {
         res.json({message: err.message});
@@ -244,7 +275,6 @@ router.post('/sensor/updateUserAndFactory/:code', verifyToken, async (req, res) 
 
     try {
         const foundobject = await Sensor.findOne({code: req.params.code});
-        console.log('dal houni ' + foundobject);
         foundobject.userId = null;
         foundobject.factoryId = null;
         foundobject.save();
@@ -260,9 +290,8 @@ router.post('/sensor/updateUserAndFactory/:code', verifyToken, async (req, res) 
 // service change state in data base of actioneur !
 
 router.post('/sensor/updateState', verifyToken, async (req, res) => {
-    console.log(req.body.code);
-   // date = new Date;
-   // now = date.getDate() + '-' + date.getMonth() + '-' + date.getFullYear() + ',' + date.getHours() + ':' + date.getMinutes();
+    // date = new Date;
+    // now = date.getDate() + '-' + date.getMonth() + '-' + date.getFullYear() + ',' + date.getHours() + ':' + date.getMinutes();
 
 
     const updateState = await Sensor.findOneAndUpdate({code: req.body.code},
@@ -277,26 +306,95 @@ router.post('/sensor/updateState', verifyToken, async (req, res) => {
 
 
 });
-// affiche all actioneurs states
-router.post('/sensor/actuator/', verifyToken, async (req, res) => {
+masterouter.post('/sensor/actuator/', verifyToken, async (req, res) => {
     try {
-    console.log("hedha oumour  actuator code " + req.body.code);
-    console.log("hedha oumour  actuator code " + req.body.state);
 
-  s = Sensor.findOne({code: req.body.code}, async function (err, foundObject) {
 
-        foundObject.state = req.body.state ;
-        foundObject.save() ;
+        s = Sensor.findOne({code: req.body.code}, async function (err, foundObject) {
 
-    });
+            foundObject.state = req.body.state;
+            foundObject.save();
+
+        });
         res.json(s)
-} catch (err) {
-    res.json({message: err.message});
+    } catch (err) {
+        res.json({message: err.message});
 
-}
+    }
 
 
 });
 
+// update device
+router.post('/sensor/update/', verifyToken, async (req, res) => {
 
+        const dev = await Sensor.findById({_id: req.body.id});
+
+        if (req.body.name != null) {
+            dev.name = req.body.name;
+        }
+        if (req.body.area != null) {
+            dev.area = req.body.area;
+        }
+    dev.save();
+
+        await res.json(dev);
+});
+
+//******************************************Socket io****************************************************//
+//Sensor/UpdateValue
+/*
+SocketClients = [];
+try {
+    const chat = io
+        .of('/Sensor/UpdateValue')
+        .on('connection', (socket) => {
+            socket.on('news', async (message) => {
+                console.log('data', socket.id);
+                console.log('SocketClients length ', SocketClients.length);
+                if (SocketClients.length === 0)
+                {
+                    console.log('create 1');
+                    let clientInfo = {};
+                    clientInfo.socketId = socket.id;
+                    clientInfo.token = message.Accesstoken;
+                    SocketClients.push(clientInfo);
+                } else
+                {
+                    let exist = false;
+                    SocketClients.forEach(item => {
+                        if (item.socketId === socket.id)
+                        {
+                            if (item.token === message.Accesstoken)
+                            {
+
+                            }
+                        }
+                    });
+                    if (exist === false)
+                    {
+                        console.log('create 2');
+                        let clientInfo = {};
+                        clientInfo.socketId = socket.id;
+                        clientInfo.token = message.Accesstoken;
+                        SocketClients.push(clientInfo);
+                    }
+                }
+                console.log('Socket Clients' , SocketClients);
+            });
+
+            socket.on('disconnect', (message) => {
+                //console.log('disconnect' , message);
+                let i = 0;
+                SocketClients.forEach(item => {
+                    if (item.socketId === socket.id)
+                        SocketClients.splice(i,1);
+                    i++;
+                })
+            });
+        });
+} catch (e) {
+    console.log('error', e.toString())
+}
+*/
 module.exports = router;

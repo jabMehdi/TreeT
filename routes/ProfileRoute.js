@@ -5,7 +5,6 @@ var jwt = require('jsonwebtoken');
 
 function verifyToken(req, res, next) {
     let payload;
-    console.log(req.query.token);
     if (req.query.token === 'null') {
         return res.status(401).send('Unauthorized request')
     }
@@ -45,20 +44,18 @@ router.post('/update', verifyToken, async (req, res) => {
 
     if (req.body.username != null) {
         us.username = req.body.username ;
-        us.save();
     }
     if (req.body.numTel != null) {
         us.numTel = req.body.numTel ;
-        us.save();
     }
     if (req.body.password != null) {
         us.password = req.body.password ;
-        us.save();
     }
     if (req.body.email != null) {
         us.email = req.body.email;
-        us.save()
+
     }
+    us.save() ;
 
     await res.json(us);
 });
