@@ -2,6 +2,11 @@ const express = require('express');
 const router = express.Router();
 const U = require('../models/User');
 var jwt = require('jsonwebtoken');
+const Cryptr = require('cryptr');
+const cryptr = new Cryptr('myTotalySecretKey');
+
+const encryptedString = cryptr.encrypt('123456');
+const decryptedString = cryptr.decrypt(encryptedString);
 
 function verifyToken(req, res, next) {
     let payload;
@@ -49,7 +54,8 @@ router.post('/update', verifyToken, async (req, res) => {
         us.numTel = req.body.numTel ;
     }
     if (req.body.password != null) {
-        us.password = req.body.password ;
+        const encryptedString = cryptr.encrypt(req.body.password);
+        us.password = encryptedString ;
     }
     if (req.body.email != null) {
         us.email = req.body.email;
@@ -59,4 +65,5 @@ router.post('/update', verifyToken, async (req, res) => {
 
     await res.json(us);
 });
+
 module.exports = router;

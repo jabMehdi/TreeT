@@ -158,6 +158,10 @@ router.post('/alert/update/', verifyToken, async (req, res) => {
     if (max!= null) {
         alert.max = req.body.max;
     }
+    if (req.body.status!= null) {
+        alert.status = req.body.status;
+    }
+
 
     alert.save() ;
 

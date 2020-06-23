@@ -2,9 +2,11 @@ const express = require('express');
 const router = express.Router();
 const Sensor = require('../models/Sensor');
 var jwt = require('jsonwebtoken');
-
 const F = require('../models/Factory');
+const kafka = require('kafka-node');
+const {spawn} = require('child_process');
 
+// decryptage compteur
 
 function verifyToken(req, res, next) {
     let payload;
@@ -27,24 +29,32 @@ function verifyToken(req, res, next) {
     next()
 }
 
+// lel  mnehel edhaw
+router.post('/AddSensorData', async (req, res) => {
+    try {
+        Sens = await Sensor.findOne({code: req.body.code});
+        delete req.body.code;
+        req.body.time = Date.now();
+        Sens.Countersdata.push(req.body);
+        // console.log(Sens.data);
+        await Sens.save();
+        return res.status(200).json({status: "ok", message: "updated"});
+    } catch (e) {
+        console.log('error AddSensorData', e);
+    }
+});
+
 router.post('/sensor', verifyToken, async (req, res) => {
     let sensor = new Sensor({
         userId: null,
         code: req.body.code,
         name: req.body.name,
-        tempValues: req.body.tempValues,
-        humValues: req.body.humValues,
-        type: req.body.type,
-        isAffected: false,
         factoryId: null,
-        createdAt: [],
-        factoryName: req.body.factoryName,
-        state: req.body.state,
         batteryLevel: req.body.batteryLevel,
-        area: req.body.area,
+        type: req.body.type,
+        state  : false ,
     });
     try {
-
         sensor = await sensor.save();
         res.json({status: "ok", message: 'sensor add to data base'});
         return;
@@ -111,6 +121,7 @@ router.post('/sensor/findByUser', verifyToken, async (req, res) => {
 
 });
 
+// affectation
 router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
 
     Sensor.findOne({code: req.body.code}, async function (err, foundObject) {
@@ -166,82 +177,124 @@ router.post('/sensor/updateSensor/', verifyToken, async (req, res) => {
     });
 });
 
-router.post('/sensor/updateValues', verifyToken, async (req, res) => {
-    date = new Date;
-    updateClient();
-    now = date.getDate() + '-' + date.getMonth() + '-' + date.getFullYear() + ',' + date.getHours() + ':' + date.getMinutes();
-    if (req.body.tempValues != null) {
-        const updateTemp = await Sensor.findOneAndUpdate({code: req.body.code},
-            {
-                $addToSet: {
-                    tempValues: {$each: [req.body.tempValues],},
-                    createdAt: {$each: [now],}
-                }
-            }, {new: true});
-        await res.json(updateTemp);
-    }
-    if (req.body.humValues != null) {
-        const updateHum = await Sensor.findOneAndUpdate({code: req.body.code},
-            {
-                $addToSet: {
-                    humValues: {$each: [req.body.humValues],},
-
-                }
-            }, {new: true});
-        await res.json(updateHum);
-    }
-
-    if (req.body.otherVal != null) {
-        const updateOther = await Sensor.findOneAndUpdate({code: req.body.code},
-            {
-                $addToSet: {
-                    otherVal: {$each: [req.body.otherVal],},
-
-                }
-            }, {new: true});
-
-        await res.json(updateOther);
-    }
-
-
-});
-
-// new update
+//database udpdate lel sensors
 router.post('/sensor/updateData', async (req, res) => {
     try {
-        /*
-        * send data like this
-        *              {
-     "code" : "93" ,
-     "state": "" ,
-     "batteryLevel" : " 33" ,
-     "time"  : "" ,
-     "humValues" : "33" ,
-     "tempValues" : "33" ,
-     "lightValues" : "33" ,
-     "energy" : ""  ,
-     "type" : "Sensor"
-
-     }
-        * */
         Sens = await Sensor.findOne({code: req.body.code});
+
         delete req.body.code;
-        req.body.time =  Date.now() ;
+        req.body.time = Date.now();
         Sens.data.push(req.body);
         await Sens.save();
-       // AlertClients(req.body, Sens);
+        updateClients_Soket(req.body, Sens);
+
         return res.status(200).json({status: "ok", message: Sens});
     } catch (e) {
     }
 });
 
+// kafka
 
+try {
+    console.log('d5al kafla')
+    Consumer = kafka.Consumer,
+        client = new kafka.KafkaClient({kafkaHost: '193.95.76.211:9092'}),
+        consumer = new Consumer(client, [{topic: 'AS.Treetronix.v1', partition: 0}],
+            {autoCommit: true}
+        );
+    consumer.on('message', function (msg) {
 
+        const obj = JSON.parse(msg.value);
 
+        check(obj);
+        console.log('hedha objec ', obj);
 
+    });
+    consumer.on('error', function (err) {
+        console.log('error', err);
+    });
+} catch (e) {
+    console.log(e);
+}
 
+async function check(obj) {
+    try {
+    device = await Sensor.findOne({code: obj.DevEUI_uplink.DevEUI});
+    console.log('device ta3 nami', device);
+    if (device === null) {
+        console.log('device null');
+    } else {
+        console.log('device', device.type);
+        if (device.type === 'Sensor') {
+            CryptXtree(obj.DevEUI_uplink.payload_hex, obj.DevEUI_uplink.DevEUI, obj.DevEUI_uplink.Time);
+        }
+        if (device.type === 'mono' || device.type === 'triphase' || device.type === 'Gas' || device.type === 'GasMeter') {
+            compteurCrypt(obj.DevEUI_uplink.payload_hex, obj.DevEUI_uplink.DevEUI);
+        }
 
+    }
 
+} catch (e) {
+    console.log(e);
+}
+}
+
+async function CryptXtree(data, DevEUI, time) {
+    console.log(data);
+    console.log(DevEUI);
+    temp = (parseInt(data.substring(0, 4), 16) / 100);
+    hum = (parseInt(data.substring(4, 8), 16) / 100);
+    v = (parseInt(data.substring(8, 10), 16));
+    batterie = ((v-30)/12) * 100 ;
+    tm = Date.parse(time);
+    console.log(' hedhi el temp' ,temp);
+    console.log('hedhi el hum' , hum);
+    console.log('hedhi el batterie' , batterie);
+    tram = {
+        "lightValues": 5,
+        "energy": 6,
+        "type": "Sensor",
+        "state": "",
+        "time": +tm,
+        "humValues": +hum,
+        "tempValues": +temp,
+        "batteryLevel": +batterie,
+    }
+    device = await Sensor.findOne({code: DevEUI});
+    device.data.push(tram);
+    await device.save();
+    updateClients_Soket(tram , device);
+}
+
+async function compteurCrypt(Crypteddata, DevEUI) {
+    console.log('data compteur ', Crypteddata);
+    console.log('dev ui', DevEUI);
+
+    var dataToSend;
+    const python = await spawn('python', ['routes/decrypt.py', Crypteddata, 'python']);
+    python.stdout.on('data', function (data) {
+        dataToSend = data.toString();
+    });
+    python.on('close', (code) => {
+        //  console.log(`child process close all stdio with code ${code}`);
+
+        console.log(dataToSend)
+        const datatram = JSON.parse(dataToSend);
+        //console.log(datatram);
+        UpdateCounters(datatram, DevEUI);
+        // console.log(obj.Address);
+
+    });
+}
+
+async function UpdateCounters(val, code) {
+    Sens = await Sensor.findOne({code: code});
+    delete val.code;
+    val.time = Date.now();
+    Sens.Countersdata.push(val);
+    await Sens.save();
+     updateClients_Soket(val , Sens);
+}
 
 
 router.delete('/sensor/delete/:id', (req, res) => {
@@ -288,7 +341,6 @@ router.post('/sensor/updateUserAndFactory/:code', verifyToken, async (req, res) 
 });
 
 // service change state in data base of actioneur !
-
 router.post('/sensor/updateState', verifyToken, async (req, res) => {
     // date = new Date;
     // now = date.getDate() + '-' + date.getMonth() + '-' + date.getFullYear() + ',' + date.getHours() + ':' + date.getMinutes();
@@ -306,7 +358,8 @@ router.post('/sensor/updateState', verifyToken, async (req, res) => {
 
 
 });
-masterouter.post('/sensor/actuator/', verifyToken, async (req, res) => {
+// affiche all actioneurs states
+router.post('/sensor/actuator/', verifyToken, async (req, res) => {
     try {
 
 
@@ -328,73 +381,73 @@ masterouter.post('/sensor/actuator/', verifyToken, async (req, res) => {
 // update device
 router.post('/sensor/update/', verifyToken, async (req, res) => {
 
-        const dev = await Sensor.findById({_id: req.body.id});
+    const dev = await Sensor.findById({_id: req.body.id});
 
-        if (req.body.name != null) {
-            dev.name = req.body.name;
-        }
-        if (req.body.area != null) {
-            dev.area = req.body.area;
-        }
+    if (req.body.name != null) {
+        dev.name = req.body.name;
+    }
+    if (req.body.area != null) {
+        dev.area = req.body.area;
+    }
     dev.save();
 
-        await res.json(dev);
+    await res.json(dev);
 });
-
-//******************************************Socket io****************************************************//
-//Sensor/UpdateValue
-/*
 SocketClients = [];
-try {
-    const chat = io
-        .of('/Sensor/UpdateValue')
-        .on('connection', (socket) => {
-            socket.on('news', async (message) => {
-                console.log('data', socket.id);
-                console.log('SocketClients length ', SocketClients.length);
-                if (SocketClients.length === 0)
-                {
-                    console.log('create 1');
+const chat = io
+    .of('/Sensor/UpdateValue')
+    .on('connection', (socket) => {
+        socket.on('getChartdata', async (message) => {
+            if (SocketClients.length === 0) {
+                let clientInfo = {};
+                clientInfo.socketId = socket.id;
+                clientInfo.token = message.Accesstoken;
+                SocketClients.push(clientInfo);
+            } else {
+                let exist = false;
+                SocketClients.forEach(item => {
+                    if (item.socketId === socket.id) {
+                        if (item.token === message.Accesstoken) {
+                            {
+                                exist = true;
+                                console.log('SocketClients ', SocketClients);
+                            }
+                        }
+                    }
+                });
+                if (exist === false) {
+                    //console.log('create 2');
                     let clientInfo = {};
                     clientInfo.socketId = socket.id;
                     clientInfo.token = message.Accesstoken;
                     SocketClients.push(clientInfo);
-                } else
-                {
-                    let exist = false;
-                    SocketClients.forEach(item => {
-                        if (item.socketId === socket.id)
-                        {
-                            if (item.token === message.Accesstoken)
-                            {
-
-                            }
-                        }
-                    });
-                    if (exist === false)
-                    {
-                        console.log('create 2');
-                        let clientInfo = {};
-                        clientInfo.socketId = socket.id;
-                        clientInfo.token = message.Accesstoken;
-                        SocketClients.push(clientInfo);
-                    }
                 }
-                console.log('Socket Clients' , SocketClients);
-            });
-
-            socket.on('disconnect', (message) => {
-                //console.log('disconnect' , message);
-                let i = 0;
-                SocketClients.forEach(item => {
-                    if (item.socketId === socket.id)
-                        SocketClients.splice(i,1);
-                    i++;
-                })
-            });
+            }
+            console.log('Socket Clients', SocketClients);
         });
-} catch (e) {
-    console.log('error', e.toString())
+        socket.on('getData', (message) => {
+        });
+        socket.on('disconnect', (message) => {
+
+            let i = 0;
+            SocketClients.forEach(item => {
+                if (item.socketId === socket.id)
+                    SocketClients.splice(i, 1);
+                i++;
+            })
+        });
+    });
+
+async function updateClients_Soket(data, Sensor) {
+    console.log('SocketClients', SocketClients);
+    SocketClients.forEach(item => {
+        state = io.of('/Sensor/UpdateValue').to(item.socketId).emit('setChartdata', {
+            SensId: Sensor._id,
+            newData: data
+        });
+
+    });
 }
-*/
+
+
 module.exports = router;

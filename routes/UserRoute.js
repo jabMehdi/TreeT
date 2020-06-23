@@ -4,117 +4,39 @@ const router =express.Router();
 const User  = require('../models/User');
 var jwt = require('jsonwebtoken');
 var nodemailer = require('nodemailer');
+const Cryptr = require('cryptr');
+const cryptr = new Cryptr('myTotalySecretKey');
 const kafka = require('kafka-node');
-router.get('/', function (req, res, next) {
-    return res.sendFile(path.join(__dirname + '/templateLogReg/index.html'));
-  });
 
-// consomation des données par le kafka
-
-/*
-try {
-  Consumer = kafka.Consumer,
+router.get('/kafka/test',async (req , res)=>{
+  // console.log('body :',req.body);
+  Producer = kafka.Producer,
       client = new kafka.KafkaClient({kafkaHost: process.env.kafka_ip}),
-      consumer = new Consumer(
-          client,
-          [
-            {topic: 'TestTopic', partition: 0}
-          ],
-          {
-            autoCommit: true
-          }
-      );
-  consumer.on('message', function (message) {
-    console.log(message);
+      producer = new Producer(client);
+  payloads = [
+    { topic: 'TestTopic', messages: JSON.stringify(req.body), partition: 0 },
+  ];
+  producer.on('ready', function () {
+    producer.send(payloads, function (err, data) {
+      // console.log(data);
+    });
   });
-  consumer.on('error', function (err) {
-    console.log('error', err);
-  });
-}
-catch(e) {
-  console.log(e);
-}
-
-*/
-
-  //POST route for updating data
-  router.post('/', function (req, res, next) {
-    // confirm that user typed same password twice
-    if (req.body.password !== req.body.passwordConf) {
-      var err = new Error('Passwords do not match.');
-      err.status = 400;
-      res.send("passwords dont match");
-      return next(err);
-    }
-  
-    if (req.body.email &&
-      req.body.username &&
-      req.body.password &&
-      req.body.passwordConf) {
-  
-      var userData = {
-        email: req.body.email,
-        username: req.body.username,
-        password: req.body.password,
-      }
-  
-      User.create(userData, function (error, user) {
-        if (error) {
-          return next(error);
-        } else {
-          req.session.userId = user._id;
-          return res.redirect('/profile');
-        }
-      });
-  
-    } else if (req.body.logemail && req.body.logpassword) {
-      User.authenticate(req.body.logemail, req.body.logpassword, function (error, user) {
-        if (error || !user) {
-          var err = new Error('Wrong email or password.');
-          err.status = 401;
-          return next(err);
-        } else {
-          req.session.userId = user._id;
-          return res.redirect('/profile');
-        }
-      });
-    } else {
-      var err = new Error('All fields required.');
-      err.status = 400;
-      return next(err);
-    }
-  })
-
-
-  
-  // GET for logout logout
-  router.get('/logout', function (req, res, next) {
-    if (req.session) {
-      // delete session object
-      req.session.destroy(function (err) {
-        if (err) {
-          return next(err);
-        } else {
-          return res.redirect('/');
-        }
-      });
-    }
-  });
-
-
+  return res.status(200).json({status: "ok", message: 'hello world'});
+});
 
 
 router.post('/login',async (req, res) =>
 {
   try{
+
     const NewUser =await User.find({ email : req.body.email  }).limit(1);
-    console.log(NewUser.length);
+    const decryptedString = cryptr.decrypt(NewUser[0].password);
     if (NewUser.length < 1)
     {
       await res.json({status: "err", message: 'Email Does not Exists'});
       return ;
     }
-    if (NewUser[0].password !== req.body.password )
+    if (decryptedString !== req.body.password )
     {
       await res.json({status:"err" , message: 'Wrong Paswword'});
 
@@ -143,10 +65,12 @@ router.post('/login',async (req, res) =>
 router.post('/register',async (req,res) =>
 {
   console.log(req.body);
+  const encryptedPWD = cryptr.encrypt(req.body.password);
   let user=new User({
+
     username : req.body.username,
     email :req.body.email,
-    password :req.body.password,
+    password :encryptedPWD,
     numTel :req.body.numTel ,
   });
   try{
@@ -177,24 +101,16 @@ router.get('/users/:email',async (req,res) => {
   }
 })
 
-// password change request
+// password send email 
 router.post('/request',async (req,res) => {
   try {
     const NewUser = await User.find({ email : req.body.email  });
-
-    console.log(NewUser);
     if (NewUser.length < 1)
     {
       await res.json({status: "err", message: 'Email Does not Exists'});
     }
     else {
-      code = makecode(6);
-      console.log('hedha el code' ,code) ;
-
-      NewUser.code = code ;
-      console.log('w hedha user.code',NewUser.code) ;
-      NewUser.save() ;
-      console.log('hedha new user bel code' , NewUser) ;
+      const decryptedString = cryptr.decrypt(NewUser[0].password);
       var transporter = nodemailer.createTransport({
         service: 'Gmail',
         auth: {
@@ -206,10 +122,15 @@ router.post('/request',async (req,res) => {
       var mailOptions = {
         from: 'iottreetronixt@gmail.com',
         to: req.body.email,
-        subject: "bras omek ekteb code",
-        text: code,
+        subject: "Paramètres du compte",
+        text: ' Bonjour ' + NewUser[0].username +  ' ,\n' +
+            '      Login:' + NewUser[0].email + '\n' +
+            '      Pwd:' + decryptedString + '\n' +
+            '      Cordialement.\n' +
+            '      Treetronix team.\n' +
+            '      N.B: ceci est un mail automatique merci de ne pas répondre.' ,
       };
-
+    res.json(NewUser) ;
       transporter.sendMail(mailOptions, function (error, info) {
         if (error) {
           console.log(error);
@@ -234,7 +155,6 @@ function makecode(length) {
   return result;
 }
 router.post('/code',async (req,res) => {
-  console.log("d5al lel code") ;
   try {
     NewUser = await User.find({ email : req.body.email  });
     if (req.body.code === NewUser.code) {

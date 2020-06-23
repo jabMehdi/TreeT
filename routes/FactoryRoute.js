@@ -98,12 +98,14 @@ router.post('/factory/ByUser', verifyToken, async (req, res) => {
 router.delete('/factory/delete/:id', async (req, res) => {
     console.log('ana houné');
 
-    Sensor.findOne({factoryId: req.params.id}, async function (err, foundObject) {
-        console.log(foundObject.name)
+  /*  Sensor.find({factoryId: req.params.id}, async function (err, foundObject) {
+        console.log(foundObject);
         foundObject.factoryId = null;
         foundObject.userId = null;
         foundObject.factoryName = '';
         foundObject.save();
+    });
+    */
         Factory.findByIdAndRemove(req.params.id)
             .then(sensor => {
                 if (!sensor) {
@@ -112,7 +114,7 @@ router.delete('/factory/delete/:id', async (req, res) => {
                     });
                 }
             });
-    });
+
 });
 
 router.post('/factory/update/', verifyToken, async (req, res) => {
@@ -150,6 +152,7 @@ router.post('/factory/addPlace', verifyToken, async (req, res) => {
     }
 
 });
+
 router.post('/factory/placeByFactory', verifyToken, async (req, res) => {
 
     try {
@@ -165,6 +168,7 @@ router.post('/factory/placeByFactory', verifyToken, async (req, res) => {
     }
 
 });
+
 router.post('/factory/updateZone/', verifyToken, async (req, res) => {
     console.log('d5al', req.body);
 
